@@ -1,0 +1,475 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>旅遊行程規劃</title>
+    
+    <!-- PWA 設定 -->
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#667eea">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="行程規劃">
+    <link rel="apple-touch-icon" href="icon-192.png">
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        .page {
+            display: none;
+        }
+        .page.active {
+            display: block;
+        }
+        .timeline-item {
+            position: relative;
+            padding-left: 40px;
+            margin-bottom: 20px;
+        }
+        .timeline-item:before {
+            content: '';
+            position: absolute;
+            left: 10px;
+            top: 0;
+            bottom: -20px;
+            width: 2px;
+            background: #3b82f6;
+        }
+        .timeline-item:last-child:before {
+            display: none;
+        }
+        .timeline-dot {
+            position: absolute;
+            left: 0;
+            top: 5px;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: #3b82f6;
+            border: 3px solid white;
+            box-shadow: 0 0 0 2px #3b82f6;
+        }
+        .place-card {
+            transition: all 0.3s;
+        }
+        .place-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        }
+        .emoji-btn {
+            font-size: 24px;
+            cursor: pointer;
+            padding: 8px;
+            border-radius: 8px;
+            transition: background 0.2s;
+        }
+        .emoji-btn:hover {
+            background: #f3f4f6;
+        }
+        #capture-area {
+            background: white;
+            padding: 30px;
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        .gradient-bg {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+    </style>
+</head>
+<body class="bg-gray-50">
+
+    <!-- 行程列表頁 -->
+    <div id="listPage" class="page active">
+        <div class="gradient-bg text-white py-8 px-4">
+            <div class="max-w-4xl mx-auto">
+                <h1 class="text-3xl font-bold mb-2">🗺️ 我的旅行計畫</h1>
+                <p class="text-blue-100">規劃你的完美旅程</p>
+            </div>
+        </div>
+        
+        <div class="max-w-4xl mx-auto px-4 py-8">
+            <button onclick="showCreateTrip()" class="w-full bg-blue-500 hover:bg-blue-600 text-white font-semibold py-4 px-6 rounded-lg shadow-lg mb-6 transition">
+                ➕ 建立新行程
+            </button>
+            
+            <div id="tripsList" class="space-y-4">
+                <!-- 行程列表會顯示在這裡 -->
+            </div>
+        </div>
+    </div>
+
+    <!-- 建立行程頁 -->
+    <div id="createPage" class="page">
+        <div class="gradient-bg text-white py-6 px-4">
+            <div class="max-w-4xl mx-auto">
+                <button onclick="showList()" class="text-white mb-4">← 返回</button>
+                <h2 class="text-2xl font-bold">建立新行程</h2>
+            </div>
+        </div>
+        
+        <div class="max-w-4xl mx-auto px-4 py-8">
+            <div class="bg-white rounded-lg shadow-lg p-6 space-y-4">
+                <div>
+                    <label class="block text-gray-700 font-semibold mb-2">行程名稱</label>
+                    <input type="text" id="tripTitle" placeholder="例如：東京五日遊" class="w-full border border-gray-300 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                </div>
+                
+                <div>
+                    <label class="block text-gray-700 font-semibold mb-2">旅遊天數</label>
+                    <input type="number" id="tripDays" min="1" max="30" value="3" class="w-full border border-gray-300 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                </div>
+                
+                <div>
+                    <label class="block text-gray-700 font-semibold mb-2">開始日期</label>
+                    <input type="date" id="tripStartDate" class="w-full border border-gray-300 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                </div>
+                
+                <button onclick="createTrip()" class="w-full bg-blue-500 hover:bg-blue-600 text-white font-semibold py-3 px-6 rounded-lg transition">
+                    建立行程
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 行程編輯頁 -->
+    <div id="editPage" class="page">
+        <div class="gradient-bg text-white py-6 px-4">
+            <div class="max-w-4xl mx-auto">
+                <button onclick="showList()" class="text-white mb-4">← 返回列表</button>
+                <h2 id="editTripTitle" class="text-2xl font-bold mb-2"></h2>
+                <p id="editTripDate" class="text-blue-100"></p>
+            </div>
+        </div>
+        
+        <div class="max-w-4xl mx-auto px-4 py-8">
+            <div class="mb-6 flex gap-3 overflow-x-auto pb-2">
+                <button onclick="generateTripImage()" class="bg-green-500 hover:bg-green-600 text-white font-semibold py-2 px-6 rounded-lg whitespace-nowrap transition">
+                    📷 生成行程圖
+                </button>
+                <button onclick="deleteCurrentTrip()" class="bg-red-500 hover:bg-red-600 text-white font-semibold py-2 px-6 rounded-lg whitespace-nowrap transition">
+                    🗑️ 刪除行程
+                </button>
+            </div>
+            
+            <div id="daysContainer" class="space-y-6">
+                <!-- 每日行程會顯示在這裡 -->
+            </div>
+        </div>
+    </div>
+
+    <!-- 圖片生成預覽頁 -->
+    <div id="previewPage" class="page">
+        <div class="bg-white py-6 px-4 shadow">
+            <div class="max-w-4xl mx-auto flex justify-between items-center">
+                <button onclick="showEdit()" class="text-blue-500">← 返回編輯</button>
+                <button onclick="downloadImage()" class="bg-blue-500 hover:bg-blue-600 text-white font-semibold py-2 px-6 rounded-lg transition">
+                    💾 下載圖片
+                </button>
+            </div>
+        </div>
+        
+        <div class="py-8 bg-gray-100">
+            <div id="capture-area">
+                <!-- 生成的圖片內容會顯示在這裡 -->
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 註冊 Service Worker (讓 APP 可以離線使用)
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('./service-worker.js')
+                    .then((registration) => {
+                        console.log('Service Worker 註冊成功:', registration.scope);
+                    })
+                    .catch((error) => {
+                        console.log('Service Worker 註冊失敗:', error);
+                    });
+            });
+        }
+
+        // 全域變數
+        let trips = JSON.parse(localStorage.getItem('trips') || '[]');
+        let currentTripId = null;
+
+        // 初始化
+        function init() {
+            renderTripsList();
+            // 設定今天的日期為預設值
+            document.getElementById('tripStartDate').valueAsDate = new Date();
+        }
+
+        // 顯示不同頁面
+        function showList() {
+            document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+            document.getElementById('listPage').classList.add('active');
+            renderTripsList();
+        }
+
+        function showCreateTrip() {
+            document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+            document.getElementById('createPage').classList.add('active');
+        }
+
+        function showEdit() {
+            document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+            document.getElementById('editPage').classList.add('active');
+        }
+
+        function showPreview() {
+            document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+            document.getElementById('previewPage').classList.add('active');
+        }
+
+        // 建立新行程
+        function createTrip() {
+            const title = document.getElementById('tripTitle').value;
+            const days = parseInt(document.getElementById('tripDays').value);
+            const startDate = document.getElementById('tripStartDate').value;
+
+            if (!title || !days || !startDate) {
+                alert('請填寫所有欄位！');
+                return;
+            }
+
+            const trip = {
+                id: Date.now(),
+                title: title,
+                days: days,
+                startDate: startDate,
+                items: Array.from({ length: days }, (_, i) => ({
+                    day: i + 1,
+                    date: getDateString(startDate, i),
+                    places: []
+                }))
+            };
+
+            trips.push(trip);
+            saveTrips();
+            
+            // 清空表單
+            document.getElementById('tripTitle').value = '';
+            document.getElementById('tripDays').value = '3';
+            
+            showList();
+        }
+
+        // 計算日期
+        function getDateString(startDate, daysToAdd) {
+            const date = new Date(startDate);
+            date.setDate(date.getDate() + daysToAdd);
+            return date.toLocaleDateString('zh-TW', { month: 'numeric', day: 'numeric', weekday: 'short' });
+        }
+
+        // 渲染行程列表
+        function renderTripsList() {
+            const container = document.getElementById('tripsList');
+            
+            if (trips.length === 0) {
+                container.innerHTML = `
+                    <div class="text-center py-12 text-gray-500">
+                        <div class="text-6xl mb-4">✈️</div>
+                        <p class="text-lg">還沒有任何行程</p>
+                        <p>點擊上方按鈕建立你的第一個旅行計畫！</p>
+                    </div>
+                `;
+                return;
+            }
+
+            container.innerHTML = trips.map(trip => `
+                <div class="bg-white rounded-lg shadow-md p-6 hover:shadow-lg transition cursor-pointer" onclick="editTrip(${trip.id})">
+                    <div class="flex justify-between items-start">
+                        <div>
+                            <h3 class="text-xl font-bold text-gray-800 mb-2">${trip.title}</h3>
+                            <p class="text-gray-600">📅 ${trip.startDate} · ${trip.days} 天</p>
+                            <p class="text-gray-500 text-sm mt-2">共 ${trip.items.reduce((sum, day) => sum + day.places.length, 0)} 個景點</p>
+                        </div>
+                        <div class="text-3xl">🗺️</div>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        // 編輯行程
+        function editTrip(tripId) {
+            currentTripId = tripId;
+            const trip = trips.find(t => t.id === tripId);
+            
+            document.getElementById('editTripTitle').textContent = trip.title;
+            document.getElementById('editTripDate').textContent = `${trip.startDate} · ${trip.days} 天`;
+            
+            renderDays(trip);
+            showEdit();
+        }
+
+        // 渲染每日行程
+        function renderDays(trip) {
+            const container = document.getElementById('daysContainer');
+            
+            container.innerHTML = trip.items.map((day, index) => `
+                <div class="bg-white rounded-lg shadow-md p-6">
+                    <div class="flex justify-between items-center mb-4">
+                        <h3 class="text-xl font-bold text-gray-800">Day ${day.day} - ${day.date}</h3>
+                        <button onclick="addPlace(${index})" class="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg text-sm transition">
+                            ➕ 新增地點
+                        </button>
+                    </div>
+                    
+                    <div class="space-y-3" id="day-${index}-places">
+                        ${day.places.length === 0 ? 
+                            '<p class="text-gray-400 text-center py-8">尚未新增任何地點</p>' :
+                            day.places.map((place, pIndex) => `
+                                <div class="timeline-item">
+                                    <div class="timeline-dot"></div>
+                                    <div class="place-card bg-gray-50 rounded-lg p-4">
+                                        <div class="flex justify-between items-start mb-2">
+                                            <div class="flex items-center gap-2">
+                                                <span class="text-2xl">${place.icon}</span>
+                                                <div>
+                                                    <div class="font-semibold text-gray-800">${place.name}</div>
+                                                    <div class="text-sm text-gray-500">⏰ ${place.time}</div>
+                                                </div>
+                                            </div>
+                                            <button onclick="deletePlace(${index}, ${pIndex})" class="text-red-500 hover:text-red-700 text-sm">
+                                                🗑️
+                                            </button>
+                                        </div>
+                                        ${place.notes ? `<p class="text-sm text-gray-600 mt-2">${place.notes}</p>` : ''}
+                                    </div>
+                                </div>
+                            `).join('')
+                        }
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        // 新增地點
+        function addPlace(dayIndex) {
+            const trip = trips.find(t => t.id === currentTripId);
+            
+            const name = prompt('地點名稱：');
+            if (!name) return;
+            
+            const time = prompt('時間（例如：09:00）：');
+            if (!time) return;
+            
+            const typeEmoji = {
+                '1': '🏛️',
+                '2': '🍜',
+                '3': '☕',
+                '4': '🏨',
+                '5': '🛍️'
+            };
+            
+            const type = prompt('類型：\n1-景點 2-餐廳 3-咖啡廳 4-住宿 5-購物\n請輸入數字：');
+            const icon = typeEmoji[type] || '📍';
+            
+            const notes = prompt('備註（可不填）：') || '';
+            
+            const place = {
+                name: name,
+                time: time,
+                icon: icon,
+                notes: notes
+            };
+            
+            trip.items[dayIndex].places.push(place);
+            saveTrips();
+            renderDays(trip);
+        }
+
+        // 刪除地點
+        function deletePlace(dayIndex, placeIndex) {
+            if (!confirm('確定要刪除這個地點嗎？')) return;
+            
+            const trip = trips.find(t => t.id === currentTripId);
+            trip.items[dayIndex].places.splice(placeIndex, 1);
+            saveTrips();
+            renderDays(trip);
+        }
+
+        // 刪除行程
+        function deleteCurrentTrip() {
+            if (!confirm('確定要刪除整個行程嗎？此操作無法復原！')) return;
+            
+            trips = trips.filter(t => t.id !== currentTripId);
+            saveTrips();
+            showList();
+        }
+
+        // 生成行程圖片
+        function generateTripImage() {
+            const trip = trips.find(t => t.id === currentTripId);
+            
+            const captureArea = document.getElementById('capture-area');
+            captureArea.innerHTML = `
+                <div class="text-center mb-6">
+                    <h1 class="text-3xl font-bold text-gray-800 mb-2">${trip.title}</h1>
+                    <p class="text-gray-600">📅 ${trip.startDate} · ${trip.days} 天行程</p>
+                </div>
+                
+                ${trip.items.map(day => `
+                    <div class="mb-8">
+                        <div class="bg-gradient-to-r from-blue-500 to-purple-600 text-white px-4 py-3 rounded-t-lg">
+                            <h3 class="text-lg font-bold">Day ${day.day} - ${day.date}</h3>
+                        </div>
+                        <div class="border border-gray-200 rounded-b-lg p-4 space-y-3">
+                            ${day.places.length === 0 ? 
+                                '<p class="text-gray-400 text-center py-4">尚未規劃</p>' :
+                                day.places.map(place => `
+                                    <div class="flex items-start gap-3 bg-gray-50 p-3 rounded-lg">
+                                        <span class="text-2xl">${place.icon}</span>
+                                        <div class="flex-1">
+                                            <div class="font-semibold text-gray-800">${place.name}</div>
+                                            <div class="text-sm text-gray-500">⏰ ${place.time}</div>
+                                            ${place.notes ? `<div class="text-sm text-gray-600 mt-1">${place.notes}</div>` : ''}
+                                        </div>
+                                    </div>
+                                `).join('')
+                            }
+                        </div>
+                    </div>
+                `).join('')}
+                
+                <div class="text-center text-gray-400 text-sm mt-8">
+                    Created with 旅遊行程規劃 APP
+                </div>
+            `;
+            
+            showPreview();
+        }
+
+        // 下載圖片
+        function downloadImage() {
+            const captureArea = document.getElementById('capture-area');
+            
+            html2canvas(captureArea, {
+                backgroundColor: '#ffffff',
+                scale: 2
+            }).then(canvas => {
+                const link = document.createElement('a');
+                const trip = trips.find(t => t.id === currentTripId);
+                link.download = `${trip.title}.png`;
+                link.href = canvas.toDataURL('image/png');
+                link.click();
+            });
+        }
+
+        // 儲存到 localStorage
+        function saveTrips() {
+            localStorage.setItem('trips', JSON.stringify(trips));
+        }
+
+        // 初始化應用
+        init();
+    </script>
+
+</body>
+</html>
